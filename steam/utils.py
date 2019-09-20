@@ -2,6 +2,8 @@ import os
 import json
 import logging
 
+config_path = 'cfg'
+
 def dir_check(directory):
     if not os.path.isdir(directory):
         os.makedirs(directory)

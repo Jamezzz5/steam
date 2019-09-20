@@ -7,9 +7,9 @@ Base = declarative_base()
 
 class Game(Base):
     __tablename__ = 'game'
-    id = Column(Integer, primary_key=True)
+    gameid = Column(Integer, primary_key=True)
     appid = Column(BigInteger)
-    name = Column(Text)
+    gamename = Column(Text)
     gameevents = relationship('GameEvents', backref='game', lazy='dynamic')
     about_the_game = Column(Text)
     achievements = Column(Text)
@@ -38,7 +38,6 @@ class Game(Base):
     reviews = Column(Text)
     screenshots = Column(Text)
     short_description = Column(Text)
-    steam_appid = Column(Text)
     support_info = Column(Text)
     supported_languages = Column(Text)
     type = Column(Text)
@@ -47,16 +46,17 @@ class Game(Base):
 
 class GameEvents(Base):
     __tablename__ = 'gameevents'
-    id = Column(Integer, primary_key=True)
-    game_id = Column(Integer, ForeignKey('game.id'))
+    gameeventsid = Column(Integer, primary_key=True)
+    gameeventname = Column(Text)
+    gameid = Column(Integer, ForeignKey('game.gameid'))
     gameeventdate = Column(DateTime)
     current_players = Column(Integer)
-    steam_id = Column(Integer, ForeignKey('user.id'))
+    userid = Column(Integer, ForeignKey('user.userid'))
 
 
 class User(Base):
     __tablename__ = 'user'
-    id = Column(Integer, primary_key=True)
+    userid = Column(Integer, primary_key=True)
     steam_id = Column(Integer)
     communityvisibilitystate = Column(Integer)
     profilestate = Column(Integer)
@@ -71,3 +71,5 @@ class User(Base):
     loccountrycode = Column(String)
     locstatecode = Column(Integer)
     gameevents = relationship('GameEvents', backref='user', lazy='dynamic')
+
+

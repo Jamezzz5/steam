@@ -38,8 +38,11 @@ class SteamApi(object):
         return r
 
     @staticmethod
-    def raw_request(url, sleep_length=0, error=True):
-        r = requests.get(url)
+    def raw_request(url, sleep_length=0, error=True, params=None):
+        if params:
+            r = requests.get(url, params=params)
+        else:
+            r = requests.get(url)
         try:
             r.json()
             return r
@@ -120,12 +123,13 @@ class SteamApi(object):
     def get_data_write_df(self, search_num=None):
         self.set_last_steam_id()
         df = self.user_search_loop(search_num=search_num)
+        current_players = self.get_current_players(df['appid'].unique())
+        df = df.append(current_players, ignore_index=True, sort=True)
         game_dict = self.get_game_dict()
         df = df.merge(game_dict, on='appid', how='left')
-        player_stats = self.get_player_stats(df['steam_id'].unique().tolist())
+        steam_ids = df[df['steam_id'].notnull()]['steam_id'].unique().tolist()
+        player_stats = self.get_player_stats(steam_ids)
         df = df.merge(player_stats, on='steam_id', how='left')
-        current_players = self.get_current_players(df['appid'].unique())
-        df = df.merge(current_players, on='appid', how='left')
         app_details = self.get_app_details(df['appid'].unique())
         df = df.merge(app_details, on='appid', how='left')
         df['gameeventdate'] = dt.datetime.today().date()
@@ -133,20 +137,26 @@ class SteamApi(object):
             dt.datetime.today().date().strftime('%Y%m%d'))
         utl.dir_check('data')
         df.to_csv(os.path.join('data', file_name), index=False)
+        df.to_csv('steam_users.csv', index=False)
 
     def get_current_players(self, game_ids):
         df = pd.DataFrame()
         for game_id in game_ids:
             logging.info('Getting current_players for id: {}'.format(game_id))
-            r = requests.get(self.cur_players_url, params={'appid': game_id})
-            if 'player_count' in r.json()['response']:
+            r = self.raw_request(self.cur_players_url, sleep_length=60,
+                                 params={'appid': game_id})
+            if r and 'player_count' in r.json()['response']:
                 tdf = pd.DataFrame([
                     {'player_count': r.json()['response']['player_count'],
                      'appid': game_id}])
                 df = df.append(tdf, ignore_index=True, sort=True)
             else:
                 logging.warning('Could not get player count for id: '
-                                '{} \n Response: {}'.format(game_id, r.json()))
+                                '{} \n '.format(game_id))
+                if r is False:
+                    game_ids.append(game_id)
+                else:
+                    logging.warning('Response: {}'.format(r.json()))
         df['appid'] = df['appid'].astype('int64')
         return df
 
@@ -154,7 +164,8 @@ class SteamApi(object):
         df = pd.DataFrame()
         for game_id in game_ids:
             logging.info('Getting app details for id: {}'.format(game_id))
-            r = requests.get(self.app_det_url, params={'appids': game_id})
+            r = self.raw_request(self.app_det_url, sleep_length=60,
+                                 params={'appids': game_id})
             if r.json()[str(game_id)]['success']:
                 tdf = pd.DataFrame([r.json()[str(game_id)]['data']])
                 df = df.append(tdf, ignore_index=True, sort=True)
@@ -168,13 +179,18 @@ class SteamApi(object):
 
     def get_player_stats(self, steam_ids):
         df = pd.DataFrame()
-        steam_ids = [steam_ids[x:x + 100] for x in range(0, len(steam_ids), 100)]
-        for steam_id in steam_ids:
-            r = requests.get(self.player_sum_url, params={
-                'key': self.key,
-                'steamids': ','.join([str(x) for x in steam_id])})
+        steam_ids = [steam_ids[x:x + 100]
+                     for x in range(0, len(steam_ids), 100)]
+        for steam_id in [x for x in steam_ids if x]:
+            logging.info('Getting player stats for id: {}'.format(steam_id))
+            r = self.raw_request(
+                self.player_sum_url, sleep_length=60, params={
+                    'key': self.key,
+                    'steamids': ','.join([str(int(x)) for x in steam_id])})
             tdf = pd.DataFrame(r.json()['response']['players'])
+            print(tdf)
             df = df.append(tdf, ignore_index=True)
         df = df.rename(columns={'steamid': 'steam_id'})
+        logging.info(df)
         df['steam_id'] = df['steam_id'].astype('int64')
         return df
