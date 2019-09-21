@@ -510,7 +510,7 @@ class DFTranslation(object):
         self.df = self.df.rename(columns=self.translation)
         self.df = self.clean_types_for_upload(self.df)
         self.add_event_name()
-        replace_dict = {'"': '', "\\\\": '/', '\r': '', '\n': ''}
+        replace_dict = {'"': '', "\\\\": '/', '\r': '', '\n': '', '\t': ''}
         self.df.replace(replace_dict, regex=True, inplace=True)
 
     def add_event_name(self):
@@ -562,3 +562,32 @@ class DFTranslation(object):
             df[col] = df[col].replace(np.nan, 0)
             df[col] = df[col].astype('int64')
         return df
+
+import steam.models as mdl
+metadata = mdl.Base.metadata
+tables = metadata.sorted_tables
+
+table = tables[2]
+fcs = [x for x in table.columns if x.foreign_keys]
+full_join_script = []
+for fc in fcs:
+    fk = [x for x in fc.foreign_keys][0]
+    join_table = fk.column.table.name
+    target_full = fk.target_fullname
+    join_script = """FULL JOIN "{}" ON ("{}"."{}" = "{}"."{}")""".format(
+        join_table, table.name, fc.name, join_table, fk.column.name)
+
+    full_join_script.append(join_script)
+from_script = """FROM {}""".format(table.name)
+if full_join_script:
+    from_script = """{} {}""".format(from_script, ' '.join(full_join_script))
+
+column_names = []
+for table in tables:
+    columns = table.columns
+    names = [x.name for x in columns if not x.foreign_keys and not x.primary_key]
+    column_names.extend(names)
+
+sel_script = \
+"""SELECT {} {} GROUP BY {}""".format(
+    ','.join(column_names), from_script, ','.join(column_names))

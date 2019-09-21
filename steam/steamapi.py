@@ -122,7 +122,11 @@ class SteamApi(object):
 
     def get_data_write_df(self, search_num=None):
         self.set_last_steam_id()
+        file_name = 'steam_users_{}.csv'.format(
+            dt.datetime.today().date().strftime('%Y%m%d'))
         df = self.user_search_loop(search_num=search_num)
+        df.to_csv(os.path.join('data', file_name), index=False)
+        df.to_csv('steam_users.csv', index=False)
         current_players = self.get_current_players(df['appid'].unique())
         df = df.append(current_players, ignore_index=True, sort=True)
         game_dict = self.get_game_dict()
@@ -166,12 +170,16 @@ class SteamApi(object):
             logging.info('Getting app details for id: {}'.format(game_id))
             r = self.raw_request(self.app_det_url, sleep_length=60,
                                  params={'appids': game_id})
-            if r.json()[str(game_id)]['success']:
+            if r and r.json()[str(game_id)]['success']:
                 tdf = pd.DataFrame([r.json()[str(game_id)]['data']])
                 df = df.append(tdf, ignore_index=True, sort=True)
             else:
                 logging.warning('Could not get details for id: '
-                                '{} \n Response: {}'.format(game_id, r.json()))
+                                '{} \n '.format(game_id))
+                if r is False:
+                    game_ids.append(game_id)
+                else:
+                    logging.warning('Response: {}'.format(r.json()))
         df = df.rename(columns={'steam_appid': 'appid'})
         df = df.rename(columns={'name': 'app_detail_name'})
         df['appid'] = df['appid'].astype('int64')
@@ -188,7 +196,6 @@ class SteamApi(object):
                     'key': self.key,
                     'steamids': ','.join([str(int(x)) for x in steam_id])})
             tdf = pd.DataFrame(r.json()['response']['players'])
-            print(tdf)
             df = df.append(tdf, ignore_index=True)
         df = df.rename(columns={'steamid': 'steam_id'})
         logging.info(df)

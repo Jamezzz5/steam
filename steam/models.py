@@ -57,7 +57,7 @@ class GameEvents(Base):
 class User(Base):
     __tablename__ = 'user'
     userid = Column(Integer, primary_key=True)
-    steam_id = Column(Integer)
+    steam_id = Column(BigInteger)
     communityvisibilitystate = Column(Integer)
     profilestate = Column(Integer)
     personaname = Column(Text)
@@ -71,5 +71,3 @@ class User(Base):
     loccountrycode = Column(String)
     locstatecode = Column(Integer)
     gameevents = relationship('GameEvents', backref='user', lazy='dynamic')
-
-

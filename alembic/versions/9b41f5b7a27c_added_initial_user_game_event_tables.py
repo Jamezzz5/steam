@@ -1,8 +1,8 @@
 """added initial user game event tables
 
-Revision ID: 406221675ff8
+Revision ID: 9b41f5b7a27c
 Revises: 
-Create Date: 2019-09-19 18:47:16.802198
+Create Date: 2019-09-20 06:23:13.257882
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '406221675ff8'
+revision = '9b41f5b7a27c'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -57,7 +57,7 @@ def upgrade():
     )
     op.create_table('user',
     sa.Column('userid', sa.Integer(), nullable=False),
-    sa.Column('steam_id', sa.Integer(), nullable=True),
+    sa.Column('steam_id', sa.BigInteger(), nullable=True),
     sa.Column('communityvisibilitystate', sa.Integer(), nullable=True),
     sa.Column('profilestate', sa.Integer(), nullable=True),
     sa.Column('personaname', sa.Text(), nullable=True),
