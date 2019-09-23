@@ -11,6 +11,7 @@ import datetime as dt
 import sqlalchemy as sqa
 import steam.utils as utl
 import steam.expcolumns as exc
+import steam.models as mdl
 
 log = logging.getLogger()
 config_path = utl.config_path
@@ -490,12 +491,12 @@ class DFTranslation(object):
         self.translation_type = dict(zip(df[exc.translation_db],
                                          df[exc.translation_type]))
         self.text_columns = [k for k, v in self.translation_type.items()
-                             if v == 'TEXT']
+                             if v == 'TEXT' or v == 'VARCHAR']
         self.date_columns = [k for k, v in self.translation_type.items()
-                             if v == 'DATE']
+                             if v == 'DATE' or v == 'DATETIME']
         self.int_columns = [k for k, v in self.translation_type.items()
                             if v == 'INT' or v == 'BIGINT'
-                            or v == 'BIGSERIAL']
+                            or v == 'BIGSERIAL' or v == 'INTEGER']
         self.real_columns = [k for k, v in self.translation_type.items()
                              if v == 'REAL' or v == 'DECIMAL']
 
@@ -563,31 +564,41 @@ class DFTranslation(object):
             df[col] = df[col].astype('int64')
         return df
 
-import steam.models as mdl
-metadata = mdl.Base.metadata
-tables = metadata.sorted_tables
 
-table = tables[2]
-fcs = [x for x in table.columns if x.foreign_keys]
-full_join_script = []
-for fc in fcs:
-    fk = [x for x in fc.foreign_keys][0]
-    join_table = fk.column.table.name
-    target_full = fk.target_fullname
-    join_script = """FULL JOIN "{}" ON ("{}"."{}" = "{}"."{}")""".format(
-        join_table, table.name, fc.name, join_table, fk.column.name)
+class ScriptBuilder(object):
+    def __init__(self, metadata=mdl.Base.metadata):
+        self.metadata = metadata
+        self.tables = self.metadata.sorted_tables
 
-    full_join_script.append(join_script)
-from_script = """FROM {}""".format(table.name)
-if full_join_script:
-    from_script = """{} {}""".format(from_script, ' '.join(full_join_script))
+    def get_from_script(self):
+        table = self.tables[2]
+        fcs = [x for x in table.columns if x.foreign_keys]
+        full_join_script = []
+        for fc in fcs:
+            fk = [x for x in fc.foreign_keys][0]
+            join_table = fk.column.table.name
+            join_script = """FULL JOIN "{}" ON ("{}"."{}" = "{}"."{}")""".format(
+                join_table, table.name, fc.name, join_table, fk.column.name)
+            full_join_script.append(join_script)
+        from_script = """FROM {}""".format(table.name)
+        if full_join_script:
+            from_script = """{} {}""".format(
+                from_script, ' '.join(full_join_script))
+        return from_script
 
-column_names = []
-for table in tables:
-    columns = table.columns
-    names = [x.name for x in columns if not x.foreign_keys and not x.primary_key]
-    column_names.extend(names)
+    def get_column_names(self):
+        column_names = []
+        for table in self.tables:
+            columns = table.columns
+            names = [x.name for x in columns
+                     if not x.foreign_keys and not x.primary_key]
+            column_names.extend(names)
+        return column_names
 
-sel_script = \
-"""SELECT {} {} GROUP BY {}""".format(
-    ','.join(column_names), from_script, ','.join(column_names))
+    def get_full_script(self):
+        from_script = self.get_from_script()
+        column_names = self.get_column_names()
+        sel_script = \
+            """SELECT {} {} GROUP BY {}""".format(
+                ','.join(column_names), from_script, ','.join(column_names))
+        return sel_script

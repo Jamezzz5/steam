@@ -16,4 +16,4 @@ translation_db = 'DB'
 translation_df = 'DF'
 translation_type = 'TYPE'
 
-event_dict = {'gameeventname': ['gameeventdate', 'appid']}
+event_dict = {'gameeventname': ['gameeventdate', 'appid', 'steam_id']}

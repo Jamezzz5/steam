@@ -37,12 +37,21 @@ class SteamApi(object):
         r = self.raw_request(url, sleep_length, error)
         return r
 
-    @staticmethod
-    def raw_request(url, sleep_length=0, error=True, params=None):
+    def raw_request(self, url, sleep_length=0, error=True, params=None):
         if params:
-            r = requests.get(url, params=params)
+            try:
+                r = requests.get(url, params=params)
+            except requests.urllib3.exceptions.ProtocolError as e:
+                logging.warning('Error - retrying: {}'.format(e))
+                time.sleep(60)
+                r = self.raw_request(url, sleep_length, error, params)
         else:
-            r = requests.get(url)
+            try:
+                r = requests.get(url)
+            except requests.urllib3.exceptions.ProtocolError as e:
+                logging.warning('Error - retrying: {}'.format(e))
+                time.sleep(60)
+                r = self.raw_request(url, sleep_length, error, params)
         try:
             r.json()
             return r
@@ -122,26 +131,30 @@ class SteamApi(object):
 
     def get_data_write_df(self, search_num=None):
         self.set_last_steam_id()
-        file_name = 'steam_users_{}.csv'.format(
-            dt.datetime.today().date().strftime('%Y%m%d'))
+        today_date = dt.datetime.today().date()
+        file_name = 'steam_users_{}.csv'.format(today_date.strftime('%Y%m%d'))
         df = self.user_search_loop(search_num=search_num)
-        df.to_csv(os.path.join('data', file_name), index=False)
-        df.to_csv('steam_users.csv', index=False)
-        current_players = self.get_current_players(df['appid'].unique())
+        self.write_df(df, file_name)
+        app_list = df['appid'].unique().tolist()
+        current_players = self.get_current_players(app_list)
         df = df.append(current_players, ignore_index=True, sort=True)
         game_dict = self.get_game_dict()
         df = df.merge(game_dict, on='appid', how='left')
         steam_ids = df[df['steam_id'].notnull()]['steam_id'].unique().tolist()
         player_stats = self.get_player_stats(steam_ids)
         df = df.merge(player_stats, on='steam_id', how='left')
-        app_details = self.get_app_details(df['appid'].unique())
+        app_details = self.get_app_details(app_list)
         df = df.merge(app_details, on='appid', how='left')
-        df['gameeventdate'] = dt.datetime.today().date()
-        file_name = 'steam_users_{}.csv'.format(
-            dt.datetime.today().date().strftime('%Y%m%d'))
+        df['gameeventdate'] = today_date
         utl.dir_check('data')
+        self.write_df(df, file_name)
+
+    @staticmethod
+    def write_df(df, file_name):
+        logging.info('Writing df to csv: {}'.format(file_name))
         df.to_csv(os.path.join('data', file_name), index=False)
         df.to_csv('steam_users.csv', index=False)
+        logging.info('Finished writing df to csv')
 
     def get_current_players(self, game_ids):
         df = pd.DataFrame()
